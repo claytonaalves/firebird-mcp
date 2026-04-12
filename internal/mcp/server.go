@@ -16,6 +16,7 @@ type Server struct {
 func NewServer(db *sql.DB) *Server {
 	s := &Server{db: db, mux: http.NewServeMux()}
 	s.mux.HandleFunc("POST /mcp", s.handleMCP)
+	s.mux.HandleFunc("GET /health", s.handleHealth)
 	return s
 }
 
@@ -68,6 +69,16 @@ func (s *Server) dispatch(ctx context.Context, method string, params json.RawMes
 	default:
 		return nil, &RPCError{Code: ErrMethodNotFound, Message: "method not found: " + method}
 	}
+}
+
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := s.db.PingContext(r.Context()); err != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": err.Error()})
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 func writeError(w http.ResponseWriter, id json.RawMessage, code int, msg string) {

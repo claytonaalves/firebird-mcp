@@ -68,11 +68,18 @@ func searchTables(ctx context.Context, db *sql.DB, p SearchParams) (any, error) 
 		return nil, err
 	}
 
-	if p.DetailLevel != "full" {
+	if p.DetailLevel == "names" {
 		results := rowsToMaps(cols, rows)
 		return SearchResult{Count: len(results), Results: results}, nil
 	}
 
+	if p.DetailLevel == "summary" {
+		results := rowsToMaps(cols, rows)
+		enrichRowCounts(ctx, db, results)
+		return SearchResult{Count: len(results), Results: results}, nil
+	}
+
+	// "full"
 	tableMap, tableOrder := groupTableColumns(rows)
 
 	idxSpec := firebird.TableIndexQuery(p.Pattern)
@@ -81,6 +88,11 @@ func searchTables(ctx context.Context, db *sql.DB, p SearchParams) (any, error) 
 		return nil, err
 	}
 	mergeIndexes(tableMap, idxRows)
+
+	counts := fetchRowCounts(ctx, db, tableOrder)
+	for name, count := range counts {
+		tableMap[name]["row_count"] = count
+	}
 
 	results := make([]map[string]any, 0, len(tableOrder))
 	for _, name := range tableOrder {
@@ -96,12 +108,25 @@ func searchViews(ctx context.Context, db *sql.DB, p SearchParams) (any, error) {
 		return nil, err
 	}
 
-	if p.DetailLevel != "full" {
+	if p.DetailLevel == "names" {
 		results := rowsToMaps(cols, rows)
 		return SearchResult{Count: len(results), Results: results}, nil
 	}
 
+	if p.DetailLevel == "summary" {
+		results := rowsToMaps(cols, rows)
+		enrichRowCounts(ctx, db, results)
+		return SearchResult{Count: len(results), Results: results}, nil
+	}
+
+	// "full"
 	tableMap, tableOrder := groupTableColumns(rows)
+
+	counts := fetchRowCounts(ctx, db, tableOrder)
+	for name, count := range counts {
+		tableMap[name]["row_count"] = count
+	}
+
 	results := make([]map[string]any, 0, len(tableOrder))
 	for _, name := range tableOrder {
 		results = append(results, tableMap[name])
@@ -188,6 +213,44 @@ func searchFunctions(ctx context.Context, db *sql.DB, p SearchParams) (any, erro
 	}
 	results := rowsToMaps(cols, rows)
 	return SearchResult{Count: len(results), Results: results}, nil
+}
+
+// fetchRowCounts runs SELECT COUNT(*) for each table name and returns name→count.
+// Table names come from RDB$RELATIONS (not user input), so direct interpolation is safe.
+func fetchRowCounts(ctx context.Context, db *sql.DB, names []string) map[string]int64 {
+	counts := make(map[string]int64, len(names))
+	for _, name := range names {
+		rows, err := db.QueryContext(ctx, "SELECT COUNT(*) FROM "+name)
+		if err != nil {
+			continue
+		}
+		if rows.Next() {
+			var n int64
+			if rows.Scan(&n) == nil {
+				counts[name] = n
+			}
+		}
+		rows.Close()
+	}
+	return counts
+}
+
+// enrichRowCounts adds row_count to each result map (which must have a "name" key).
+func enrichRowCounts(ctx context.Context, db *sql.DB, results []map[string]any) {
+	names := make([]string, 0, len(results))
+	for _, r := range results {
+		if name, ok := r["name"].(string); ok {
+			names = append(names, name)
+		}
+	}
+	counts := fetchRowCounts(ctx, db, names)
+	for _, r := range results {
+		if name, ok := r["name"].(string); ok {
+			if n, ok := counts[name]; ok {
+				r["row_count"] = n
+			}
+		}
+	}
 }
 
 // rowsToMaps converts flat query results to maps, keyed by lowercase column name.

@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 
 	"github.com/claytonaalves/firebird-mcp/internal/db"
 	"github.com/claytonaalves/firebird-mcp/internal/mcp"
@@ -28,10 +30,22 @@ func main() {
 	}
 	defer pool.Close()
 
-	server := mcp.NewServer(pool)
-	addr := ":" + *port
-	slog.Info("firebird-mcp listening", "addr", addr)
-	if err := http.ListenAndServe(addr, server); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	srv := &http.Server{
+		Addr:    ":" + *port,
+		Handler: mcp.NewServer(pool),
+	}
+
+	go func() {
+		<-ctx.Done()
+		slog.Info("shutting down")
+		srv.Shutdown(context.Background())
+	}()
+
+	slog.Info("firebird-mcp listening", "addr", srv.Addr)
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		slog.Error("server error", "err", err)
 		os.Exit(1)
 	}
