@@ -19,7 +19,7 @@ func main() {
 
 	if flag.NArg() != 1 {
 		fmt.Fprintf(os.Stderr, "Usage: fbmcp [--port PORT] DSN\n")
-		fmt.Fprintf(os.Stderr, "  DSN: user:password@host/path/to/database.fdb\n")
+		fmt.Fprintf(os.Stderr, "  DSN: [user[:password]@]host/path/to/database.fdb\n")
 		os.Exit(1)
 	}
 
