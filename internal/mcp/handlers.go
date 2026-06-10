@@ -2,10 +2,10 @@ package mcp
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 
+	"github.com/claytonaalves/firebird-mcp/internal/db"
 	"github.com/claytonaalves/firebird-mcp/internal/tools"
 )
 
@@ -33,7 +33,7 @@ type toolsCallResult struct {
 	Content []TextContent `json:"content"`
 }
 
-func handleInitialize(_ context.Context, _ *sql.DB, _ json.RawMessage) (any, *RPCError) {
+func handleInitialize(_ context.Context, _ *db.Registry, _ json.RawMessage) (any, *RPCError) {
 	var r initializeResult
 	r.ProtocolVersion = "2024-11-05"
 	r.ServerInfo.Name = "firebird-mcp"
@@ -41,12 +41,17 @@ func handleInitialize(_ context.Context, _ *sql.DB, _ json.RawMessage) (any, *RP
 	return r, nil
 }
 
-func handleToolsList(_ context.Context, _ *sql.DB, _ json.RawMessage) (any, *RPCError) {
+func handleToolsList(_ context.Context, _ *db.Registry, _ json.RawMessage) (any, *RPCError) {
 	return toolsListResult{
 		Tools: []ToolDef{
 			{
+				Name:        "list_databases",
+				Description: "List all available database names registered with this server.",
+				InputSchema: listDatabasesSchema,
+			},
+			{
 				Name:        "execute_sql",
-				Description: "Execute SQL queries and statements on the Firebird database. Supports single and multiple statements separated by semicolons.",
+				Description: "Execute SQL queries and statements on a Firebird database. Supports single and multiple statements separated by semicolons.",
 				InputSchema: executeSQLSchema,
 			},
 			{
@@ -58,10 +63,29 @@ func handleToolsList(_ context.Context, _ *sql.DB, _ json.RawMessage) (any, *RPC
 	}, nil
 }
 
-func handleToolsCall(ctx context.Context, db *sql.DB, params json.RawMessage) (any, *RPCError) {
+type databaseArg struct {
+	Database string `json:"database"`
+}
+
+func handleToolsCall(ctx context.Context, registry *db.Registry, params json.RawMessage) (any, *RPCError) {
 	var p toolsCallParams
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, &RPCError{Code: ErrInvalidParams, Message: "invalid tools/call params"}
+	}
+
+	if p.Name == "list_databases" {
+		return toolsCallResult{
+			Content: []TextContent{{Type: "text", Text: fmt.Sprintf("%q", registry.Names())}},
+		}, nil
+	}
+
+	var dbArg databaseArg
+	if len(p.Arguments) > 0 {
+		json.Unmarshal(p.Arguments, &dbArg) //nolint: errcheck — missing db field is fine
+	}
+	pool, ok := registry.Get(dbArg.Database)
+	if !ok {
+		return nil, &RPCError{Code: ErrInvalidParams, Message: fmt.Sprintf("unknown database: %q", dbArg.Database)}
 	}
 
 	var (
@@ -70,9 +94,9 @@ func handleToolsCall(ctx context.Context, db *sql.DB, params json.RawMessage) (a
 	)
 	switch p.Name {
 	case "execute_sql":
-		result, err = tools.ExecuteSQL(ctx, db, p.Arguments)
+		result, err = tools.ExecuteSQL(ctx, pool, p.Arguments)
 	case "search_objects":
-		result, err = tools.SearchObjects(ctx, db, p.Arguments)
+		result, err = tools.SearchObjects(ctx, pool, p.Arguments)
 	default:
 		return nil, &RPCError{Code: ErrMethodNotFound, Message: fmt.Sprintf("unknown tool: %s", p.Name)}
 	}

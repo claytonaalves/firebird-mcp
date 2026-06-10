@@ -41,9 +41,18 @@ const (
 	ErrInternal       = -32603
 )
 
+var listDatabasesSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {}
+}`)
+
 var executeSQLSchema = json.RawMessage(`{
   "type": "object",
   "properties": {
+    "database": {
+      "type": "string",
+      "description": "Database name to query. Use list_databases to see available names. Omit to use the default database."
+    },
     "sql": {
       "type": "string",
       "description": "SQL statement(s) separated by semicolons"
@@ -55,6 +64,10 @@ var executeSQLSchema = json.RawMessage(`{
 var searchObjectsSchema = json.RawMessage(`{
   "type": "object",
   "properties": {
+    "database": {
+      "type": "string",
+      "description": "Database name to query. Use list_databases to see available names. Omit to use the default database."
+    },
     "object_type": {
       "type": "string",
       "enum": ["table", "column", "procedure", "function", "view"],

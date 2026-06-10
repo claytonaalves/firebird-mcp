@@ -17,25 +17,26 @@ func main() {
 	port := flag.String("port", "8080", "port to listen on")
 	flag.Parse()
 
-	if flag.NArg() != 1 {
-		fmt.Fprintf(os.Stderr, "Usage: fbmcp [--port PORT] DSN\n")
+	if flag.NArg() == 0 {
+		fmt.Fprintf(os.Stderr, "Usage: fbmcp [--port PORT] [name=]DSN [[name=]DSN ...]\n")
 		fmt.Fprintf(os.Stderr, "  DSN: [user[:password]@]host/path/to/database.fdb\n")
+		fmt.Fprintf(os.Stderr, "  name: optional label (default: \"default\")\n")
 		os.Exit(1)
 	}
 
-	pool, err := db.NewPool(flag.Arg(0))
+	registry, err := db.NewRegistry(flag.Args())
 	if err != nil {
 		slog.Error("connect to database", "err", err)
 		os.Exit(1)
 	}
-	defer pool.Close()
+	defer registry.Close()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
 	srv := &http.Server{
 		Addr:    ":" + *port,
-		Handler: mcp.NewServer(pool),
+		Handler: mcp.NewServer(registry),
 	}
 
 	go func() {

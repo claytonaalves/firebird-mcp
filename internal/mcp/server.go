@@ -2,19 +2,20 @@ package mcp
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"log/slog"
 	"net/http"
+
+	"github.com/claytonaalves/firebird-mcp/internal/db"
 )
 
 type Server struct {
-	db  *sql.DB
-	mux *http.ServeMux
+	registry *db.Registry
+	mux      *http.ServeMux
 }
 
-func NewServer(db *sql.DB) *Server {
-	s := &Server{db: db, mux: http.NewServeMux()}
+func NewServer(registry *db.Registry) *Server {
+	s := &Server{registry: registry, mux: http.NewServeMux()}
 	s.mux.HandleFunc("POST /mcp", s.handleMCP)
 	s.mux.HandleFunc("GET /health", s.handleHealth)
 	return s
@@ -59,13 +60,13 @@ func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) dispatch(ctx context.Context, method string, params json.RawMessage) (any, *RPCError) {
 	switch method {
 	case "initialize":
-		return handleInitialize(ctx, s.db, params)
+		return handleInitialize(ctx, s.registry, params)
 	case "notifications/initialized":
 		return nil, nil
 	case "tools/list":
-		return handleToolsList(ctx, s.db, params)
+		return handleToolsList(ctx, s.registry, params)
 	case "tools/call":
-		return handleToolsCall(ctx, s.db, params)
+		return handleToolsCall(ctx, s.registry, params)
 	default:
 		return nil, &RPCError{Code: ErrMethodNotFound, Message: "method not found: " + method}
 	}
@@ -73,12 +74,25 @@ func (s *Server) dispatch(ctx context.Context, method string, params json.RawMes
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	if err := s.db.PingContext(r.Context()); err != nil {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": err.Error()})
-		return
+	type dbStatus struct {
+		Status string `json:"status"`
+		Error  string `json:"error,omitempty"`
 	}
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	statuses := map[string]dbStatus{}
+	allOK := true
+	for _, name := range s.registry.Names() {
+		pool, _ := s.registry.Get(name)
+		if err := pool.PingContext(r.Context()); err != nil {
+			statuses[name] = dbStatus{Status: "error", Error: err.Error()}
+			allOK = false
+		} else {
+			statuses[name] = dbStatus{Status: "ok"}
+		}
+	}
+	if !allOK {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}
+	json.NewEncoder(w).Encode(map[string]any{"databases": statuses})
 }
 
 func writeError(w http.ResponseWriter, id json.RawMessage, code int, msg string) {
