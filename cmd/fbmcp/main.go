@@ -14,13 +14,15 @@ import (
 )
 
 func main() {
-	port := flag.String("port", "8080", "port to listen on")
+	server := flag.Bool("server", false, "serve over HTTP instead of stdio")
+	port := flag.String("port", "8080", "port to listen on (with --server)")
 	flag.Parse()
 
 	if flag.NArg() == 0 {
-		fmt.Fprintf(os.Stderr, "Usage: fbmcp [--port PORT] [name=]DSN [[name=]DSN ...]\n")
+		fmt.Fprintf(os.Stderr, "Usage: fbmcp [--server] [--port PORT] [name=]DSN [[name=]DSN ...]\n")
 		fmt.Fprintf(os.Stderr, "  DSN: [user[:password]@]host/path/to/database.fdb\n")
 		fmt.Fprintf(os.Stderr, "  name: optional label (default: \"default\")\n")
+		fmt.Fprintf(os.Stderr, "  --server: serve over HTTP (default: stdio)\n")
 		os.Exit(1)
 	}
 
@@ -34,9 +36,19 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
+	mcpServer := mcp.NewServer(registry)
+
+	if !*server {
+		if err := mcpServer.ServeStdio(ctx); err != nil {
+			slog.Error("server error", "err", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	srv := &http.Server{
 		Addr:    ":" + *port,
-		Handler: mcp.NewServer(registry),
+		Handler: mcpServer,
 	}
 
 	go func() {

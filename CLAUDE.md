@@ -11,18 +11,19 @@ go test ./... # run tests (none yet)
 
 Run the server:
 ```bash
-./fbmcp "user:password@servername/path/to/database.fdb"
-./fbmcp --port 9090 "host/path/to/database.fdb"  # default creds: sysdba:masterkey
+./fbmcp "user:password@servername/path/to/database.fdb"          # stdio transport (default)
+./fbmcp --server --port 9090 "host/path/to/database.fdb"         # HTTP transport; default creds: sysdba:masterkey
 ```
 
 ## Architecture
 
-This is a Firebird database **MCP (Model Context Protocol) server** over HTTP (not stdio). MCP clients POST JSON-RPC 2.0 requests to `POST /mcp`. A `GET /health` endpoint pings the DB.
+This is a Firebird database **MCP (Model Context Protocol) server**. It defaults to the **stdio** transport (newline-delimited JSON-RPC 2.0 over stdin/stdout); pass `--server` to serve over HTTP instead, where clients POST JSON-RPC 2.0 requests to `POST /mcp` and a `GET /health` endpoint pings the DB.
 
 ```
-cmd/fbmcp/main.go          entry point: parses flags, creates pool, starts HTTP server
+cmd/fbmcp/main.go          entry point: parses flags, creates pool, runs stdio loop or starts HTTP server
 internal/mcp/
   server.go                HTTP handler → dispatch() switch on method
+  stdio.go                 stdio transport loop → same dispatch()
   protocol.go              JSON-RPC types, tool input schemas (executeSQLSchema, searchObjectsSchema)
   handlers.go              MCP methods: initialize, tools/list, tools/call
 internal/tools/
