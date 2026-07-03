@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/claytonaalves/firebird-mcp/internal/db"
 	"github.com/claytonaalves/firebird-mcp/internal/tools"
@@ -72,6 +73,8 @@ func handleToolsCall(ctx context.Context, registry *db.Registry, params json.Raw
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, &RPCError{Code: ErrInvalidParams, Message: "invalid tools/call params"}
 	}
+
+	slog.Info("tools/call", "tool", p.Name, "arguments", string(p.Arguments))
 
 	if p.Name == "list_databases" {
 		return toolsCallResult{
