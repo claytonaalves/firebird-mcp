@@ -51,14 +51,14 @@ var executeSQLSchema = json.RawMessage(`{
   "properties": {
     "database": {
       "type": "string",
-      "description": "Database name to query. Use list_databases to see available names. Omit to use the default database."
+      "description": "Database path or DSN to query, e.g. c:/ello/dados/empresa.fdb or user:password@host/path/to/db.fdb. Required — the server has no preconfigured database; each call must specify one. Use list_databases to see databases already connected in this session."
     },
     "sql": {
       "type": "string",
       "description": "SQL statement(s) separated by semicolons"
     }
   },
-  "required": ["sql"]
+  "required": ["sql", "database"]
 }`)
 
 var searchObjectsSchema = json.RawMessage(`{
@@ -66,7 +66,7 @@ var searchObjectsSchema = json.RawMessage(`{
   "properties": {
     "database": {
       "type": "string",
-      "description": "Database name to query. Use list_databases to see available names. Omit to use the default database."
+      "description": "Database path or DSN to query, e.g. c:/ello/dados/empresa.fdb or user:password@host/path/to/db.fdb. Required — the server has no preconfigured database; each call must specify one. Use list_databases to see databases already connected in this session."
     },
     "object_type": {
       "type": "string",
@@ -92,5 +92,5 @@ var searchObjectsSchema = json.RawMessage(`{
       "default": 100
     }
   },
-  "required": ["object_type"]
+  "required": ["object_type", "database"]
 }`)

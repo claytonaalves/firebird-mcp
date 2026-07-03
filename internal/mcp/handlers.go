@@ -47,7 +47,7 @@ func handleToolsList(_ context.Context, _ *db.Registry, _ json.RawMessage) (any,
 		Tools: []ToolDef{
 			{
 				Name:        "list_databases",
-				Description: "List all available database names registered with this server.",
+				Description: "List database names already connected in this session (empty at the start of a session). To use a new database, pass its path/DSN as the \"database\" argument to execute_sql or search_objects.",
 				InputSchema: listDatabasesSchema,
 			},
 			{
@@ -86,15 +86,12 @@ func handleToolsCall(ctx context.Context, registry *db.Registry, params json.Raw
 	if len(p.Arguments) > 0 {
 		json.Unmarshal(p.Arguments, &dbArg) //nolint: errcheck — missing db field is fine
 	}
-	pool, ok := registry.Get(dbArg.Database)
-	if !ok {
-		return nil, &RPCError{Code: ErrInvalidParams, Message: fmt.Sprintf("unknown database: %q", dbArg.Database)}
+	pool, err := registry.Resolve(dbArg.Database)
+	if err != nil {
+		return nil, &RPCError{Code: ErrInvalidParams, Message: err.Error()}
 	}
 
-	var (
-		result any
-		err    error
-	)
+	var result any
 	switch p.Name {
 	case "execute_sql":
 		result, err = tools.ExecuteSQL(ctx, pool, p.Arguments)

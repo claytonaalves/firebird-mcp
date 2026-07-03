@@ -11,16 +11,18 @@ go test ./... # run tests (none yet)
 
 Run the server:
 ```bash
-./fbmcp "user:password@servername/path/to/database.fdb"          # stdio transport (default)
-./fbmcp --server --port 9090 "host/path/to/database.fdb"         # HTTP transport; default creds: sysdba:masterkey
+./fbmcp                              # stdio transport (default); no database configured at startup
+./fbmcp --server --port 9090         # HTTP transport
 ```
+
+The server has no preconfigured database — every `execute_sql`/`search_objects` call must pass a `database` argument with a full DSN/path, e.g. `user:password@servername/path/to/database.fdb` or just `host/path/to/database.fdb` (defaults to `sysdba:masterkey`). The connection is opened on first use and cached for the rest of the session (see `internal/db/pool.go`'s `Registry.Resolve`).
 
 ## Architecture
 
-This is a Firebird database **MCP (Model Context Protocol) server**. It defaults to the **stdio** transport (newline-delimited JSON-RPC 2.0 over stdin/stdout); pass `--server` to serve over HTTP instead, where clients POST JSON-RPC 2.0 requests to `POST /mcp` and a `GET /health` endpoint pings the DB.
+This is a Firebird database **MCP (Model Context Protocol) server**. It defaults to the **stdio** transport (newline-delimited JSON-RPC 2.0 over stdin/stdout); pass `--server` to serve over HTTP instead, where clients POST JSON-RPC 2.0 requests to `POST /mcp` and a `GET /health` endpoint pings whatever databases have been connected so far.
 
 ```
-cmd/fbmcp/main.go          entry point: parses flags, creates pool, runs stdio loop or starts HTTP server
+cmd/fbmcp/main.go          entry point: parses flags, runs stdio loop or starts HTTP server
 internal/mcp/
   server.go                HTTP handler → dispatch() switch on method
   stdio.go                 stdio transport loop → same dispatch()
@@ -30,7 +32,7 @@ internal/tools/
   execute_sql.go           splits on ";", detects SELECT/WITH vs DML, returns StatementResult[]
   search_objects.go        routes by object_type → firebird query builders, assembles nested results
 internal/db/
-  pool.go                  sql.DB with conn limits; applyDSNDefaults injects sysdba:masterkey
+  pool.go                  Registry: lazy connection cache keyed by sanitized DSN (Resolve); applyDSNDefaults injects sysdba:masterkey
   query.go                 RunQuery (→ cols+rows) and RunExec (→ rows affected)
 internal/firebird/
   schema.go                all Firebird RDB$ system-table SQL; returns QuerySpec{SQL, Args}

@@ -18,19 +18,13 @@ func main() {
 	port := flag.String("port", "8080", "port to listen on (with --server)")
 	flag.Parse()
 
-	if flag.NArg() == 0 {
-		fmt.Fprintf(os.Stderr, "Usage: fbmcp [--server] [--port PORT] [name=]DSN [[name=]DSN ...]\n")
-		fmt.Fprintf(os.Stderr, "  DSN: [user[:password]@]host/path/to/database.fdb\n")
-		fmt.Fprintf(os.Stderr, "  name: optional label (default: \"default\")\n")
-		fmt.Fprintf(os.Stderr, "  --server: serve over HTTP (default: stdio)\n")
+	if flag.NArg() > 0 {
+		fmt.Fprintf(os.Stderr, "fbmcp no longer takes a database path as a startup argument.\n")
+		fmt.Fprintf(os.Stderr, "Pass the database path/DSN per call via the \"database\" argument of execute_sql/search_objects instead.\n")
 		os.Exit(1)
 	}
 
-	registry, err := db.NewRegistry(flag.Args())
-	if err != nil {
-		slog.Error("connect to database", "err", err)
-		os.Exit(1)
-	}
+	registry := db.NewRegistry()
 	defer registry.Close()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
