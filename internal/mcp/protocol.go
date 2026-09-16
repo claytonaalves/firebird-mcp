@@ -51,7 +51,7 @@ var executeSQLSchema = json.RawMessage(`{
   "properties": {
     "database": {
       "type": "string",
-      "description": "Database path or DSN to query, e.g. c:/ello/dados/empresa.fdb or user:password@host/path/to/db.fdb. Required — the server has no preconfigured database; each call must specify one. Use list_databases to see databases already connected in this session."
+      "description": "Database path or DSN to query, in the form host/path/to/db.fdb or user:password@host/path/to/db.fdb (defaults to sysdba:masterkey). On Windows, the path must use the format \"localhost/c:\\\\ello\\\\dados\\\\TESTE.ELLO\" (host/database_path, with backslashes) — not a bare Windows path like \"c:\\\\ello\\\\dados\\\\TESTE.ELLO\". Required — the server has no preconfigured database; each call must specify one. Use list_databases to see databases already connected in this session."
     },
     "sql": {
       "type": "string",
@@ -66,7 +66,7 @@ var searchObjectsSchema = json.RawMessage(`{
   "properties": {
     "database": {
       "type": "string",
-      "description": "Database path or DSN to query, e.g. c:/ello/dados/empresa.fdb or user:password@host/path/to/db.fdb. Required — the server has no preconfigured database; each call must specify one. Use list_databases to see databases already connected in this session."
+      "description": "Database path or DSN to query, in the form host/path/to/db.fdb or user:password@host/path/to/db.fdb (defaults to sysdba:masterkey). On Windows, the path must use the format \"localhost/c:\\\\ello\\\\dados\\\\TESTE.ELLO\" (host/database_path, with backslashes) — not a bare Windows path like \"c:\\\\ello\\\\dados\\\\TESTE.ELLO\". Required — the server has no preconfigured database; each call must specify one. Use list_databases to see databases already connected in this session."
     },
     "object_type": {
       "type": "string",
