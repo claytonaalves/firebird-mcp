@@ -16,6 +16,7 @@ import (
 func main() {
 	server := flag.Bool("server", false, "serve over HTTP instead of stdio")
 	port := flag.String("port", "8080", "port to listen on (with --server)")
+	queryTimeout := flag.Duration("query-timeout", mcp.DefaultQueryTimeout, "max duration of each tools/call; the statement is cancelled on the Firebird server when exceeded (0 disables)")
 	flag.Parse()
 
 	if flag.NArg() > 0 {
@@ -30,7 +31,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	mcpServer := mcp.NewServer(registry)
+	mcpServer := mcp.NewServer(registry, *queryTimeout)
 
 	if !*server {
 		if err := mcpServer.ServeStdio(ctx); err != nil {

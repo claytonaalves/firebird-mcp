@@ -5,17 +5,24 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/claytonaalves/firebird-mcp/internal/db"
 )
 
+// DefaultQueryTimeout bounds each tools/call. When it fires the context is
+// cancelled and the firebirdsql driver sends op_cancel, so the statement
+// stops running on the Firebird server too. Zero disables the timeout.
+const DefaultQueryTimeout = 60 * time.Second
+
 type Server struct {
-	registry *db.Registry
-	mux      *http.ServeMux
+	registry     *db.Registry
+	mux          *http.ServeMux
+	queryTimeout time.Duration
 }
 
-func NewServer(registry *db.Registry) *Server {
-	s := &Server{registry: registry, mux: http.NewServeMux()}
+func NewServer(registry *db.Registry, queryTimeout time.Duration) *Server {
+	s := &Server{registry: registry, mux: http.NewServeMux(), queryTimeout: queryTimeout}
 	s.mux.HandleFunc("POST /mcp", s.handleMCP)
 	s.mux.HandleFunc("GET /health", s.handleHealth)
 	return s
@@ -66,6 +73,11 @@ func (s *Server) dispatch(ctx context.Context, method string, params json.RawMes
 	case "tools/list":
 		return handleToolsList(ctx, s.registry, params)
 	case "tools/call":
+		if s.queryTimeout > 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, s.queryTimeout)
+			defer cancel()
+		}
 		return handleToolsCall(ctx, s.registry, params)
 	default:
 		return nil, &RPCError{Code: ErrMethodNotFound, Message: "method not found: " + method}
