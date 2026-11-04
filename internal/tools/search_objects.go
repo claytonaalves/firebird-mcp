@@ -220,17 +220,13 @@ func searchFunctions(ctx context.Context, db *sql.DB, p SearchParams) (any, erro
 func fetchRowCounts(ctx context.Context, db *sql.DB, names []string) map[string]int64 {
 	counts := make(map[string]int64, len(names))
 	for _, name := range names {
-		rows, err := db.QueryContext(ctx, "SELECT COUNT(*) FROM "+name)
-		if err != nil {
+		_, rows, err := idb.RunQuery(ctx, db, "SELECT COUNT(*) FROM "+name)
+		if err != nil || len(rows) == 0 {
 			continue
 		}
-		if rows.Next() {
-			var n int64
-			if rows.Scan(&n) == nil {
-				counts[name] = n
-			}
+		if n, ok := rows[0][0].(int64); ok {
+			counts[name] = n
 		}
-		rows.Close()
 	}
 	return counts
 }
