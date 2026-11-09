@@ -1,26 +1,44 @@
 # Firebird MCP
 
-A Firebird database MCP server. Allows MCP-compatible clients to connect to and explore Firebird databases. Runs as a standalone HTTP server.
+A Firebird database MCP server. Allows MCP-compatible clients to connect to and explore Firebird databases. Uses the stdio transport by default (HTTP optional with `--server`).
+
+## Installation
+
+Build (produces `fbmcp` for Linux and `fbmcp.exe` for Windows):
+
+    make build
+
+### Linux
+
+Register the server in Claude Code:
+
+    claude mcp add fbmcp -- /home/youruser/path/to/firebird-mcp/fbmcp
+
+Add `--scope user` (before the `--`) to make it available in every project.
+
+### Windows
+
+Copy `fbmcp.exe` to a fixed location, e.g. `C:\bin\fbmcp.exe`, then run:
+
+    claude mcp add fbmcp -- C:\bin\fbmcp.exe
+
+Check that it is registered with `claude mcp list` (or `/mcp` inside Claude Code).
 
 ## Usage
 
-Single database:
+The server has no preconfigured database. Every `execute_sql` / `search_objects` call must pass a `database` argument with a DSN:
 
-    ./fbmcp host/path/to/db.fdb
+    user:password@host/path/to/db.fdb
 
-With credentials:
+Credentials are optional and default to `sysdba:masterkey`:
 
-    ./fbmcp user:password@host/path/to/db.fdb
+    host/path/to/db.fdb
 
-Custom port (default: 8080):
+The connection is opened on first use and cached for the rest of the session.
 
-    ./fbmcp --port 9090 host/path/to/db.fdb
+To serve over HTTP instead of stdio (clients POST JSON-RPC to `/mcp`; `GET /health` pings connected databases):
 
-Multiple databases:
-
-    ./fbmcp sales=host/sales.fdb hr=host/hr.fdb reporting=host/reports.fdb
-
-The LLM can then call `list_databases` to enumerate them, and pass `{"database": "hr", "sql": "..."}` to `execute_sql`.
+    ./fbmcp --server --port 9090
 
 ## MCP Tools
 
